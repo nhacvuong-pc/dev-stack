@@ -14,7 +14,19 @@ FROM mcr.microsoft.com/playwright/dotnet:v1.61.0-noble AS runtime
 WORKDIR /app
 COPY --from=build /app/publish/ ./
 
-RUN useradd --create-home --shell /usr/sbin/nologin appuser \
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+        ca-certificates \
+        curl \
+        ffmpeg \
+    && curl --fail --location --show-error \
+        https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux \
+        --output /usr/local/bin/yt-dlp \
+    && chmod 0755 /usr/local/bin/yt-dlp \
+    && ffmpeg -version \
+    && yt-dlp --version \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --shell /usr/sbin/nologin appuser \
     && mkdir -p /app/wwwroot/uploads /app/wwwroot/discount \
     && chown -R appuser:appuser /app
 

@@ -23,6 +23,11 @@ services:
       VideoDownloader__PlaywrightHeadless: true
       VideoDownloader__DownloadPath: wwwroot/uploads
       VideoDownloader__StorePath: https://rubyvibeco.com/files/uploads/
+      VideoDownloader__DownloadTimeoutMs: 300000
+      VideoDownloader__MaxFileSizeBytes: 15728640
+      VideoDownloader__ConcurrentDownloads: 2
+      VideoDownloader__FfmpegPath: /usr/bin/ffmpeg
+      VideoDownloader__YtDlpPath: /usr/local/bin/yt-dlp
     depends_on:
       postgres:
         condition: service_healthy
