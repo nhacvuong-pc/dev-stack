@@ -1,0 +1,164 @@
+name: rubys
+
+services:
+  ruby-vibe-linux:
+    container_name: ruby-vibe-linux
+    build:
+      context: ..
+      dockerfile: dev-stack/Dockerfile.ruby-vibe-linux
+    init: true
+    shm_size: "1gb"
+    ports:
+      - "5000:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__dbcnnstr: Host=postgres;Port=5432;Username=postgres;Password=AdminPassword!;Database=rubys
+      Redis__Host: redis
+      Redis__Port: 6379
+      Redis__Password: ""
+      Redis__Database: 0
+      Redis__InstanceName: "RubyVibeLinuxTest:"
+      VideoDownloader__Enabled: true
+      VideoDownloader__PlaywrightHeadless: true
+      VideoDownloader__DownloadPath: wwwroot/uploads
+      VideoDownloader__StorePath: https://rubyvibeco.com/files/uploads/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./persistence_data/video-downloads:/app/wwwroot/uploads
+      - ./persistence_data/discount:/app/wwwroot/discount
+    networks:
+      - rubys 
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: rubys-postgres
+
+    environment:
+      POSTGRES_DB: rubys
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: AdminPassword!
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - ./persistence_data/postgres:/var/lib/postgresql/data
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U postgres -d rubys"
+        ]
+      interval: 5s
+      retries: 30
+    networks:
+      - rubys
+
+  postgres-restore:
+    image: postgres:17-alpine
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    volumes:
+      - ./postgres/backup:/backup
+
+    entrypoint: >
+      sh -c "
+      pg_restore
+      -h postgres
+      -U postgres
+      -d rubys
+      --clean
+      --if-exists
+      /backup/rubys.backup
+      "
+
+    environment:
+      PGPASSWORD: AdminPassword!
+
+    restart: "no"
+    networks:
+      - rubys
+
+  # sqlserver:
+  #   image: ${MSSQL_IMAGE:-mcr.microsoft.com/mssql/server:2022-latest}
+  #   container_name: sqlserver
+  #   environment:
+  #     - ACCEPT_EULA=Y
+  #     - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD:-AdminPassword!}
+  #     - MSSQL_PID=Developer
+  #   ports:
+  #     - "1433:1433" 
+  #   volumes:
+  #   # Lưu dữ liệu database
+  #   - sqlserver-data:/var/opt/mssql
+  #   # Mount thư mục chứa file .bak vào container
+  #   - ./persistence_data/sqlserver/backup:/var/opt/mssql/backup:ro
+  #   healthcheck:
+  #     test:
+  #       - CMD-SHELL
+  #       - >
+  #         /opt/mssql-tools18/bin/sqlcmd
+  #         -S localhost
+  #         -U sa
+  #         -P "$$MSSQL_SA_PASSWORD"
+  #         -C
+  #         -Q "SELECT 1"
+  #         || exit 1
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 30
+  #   networks:
+  #     - rubys
+    
+  # db-init:
+  #   image: ${MSSQL_IMAGE:-mcr.microsoft.com/mssql/server:2022-latest}
+  #   container_name: rubys-db-init
+  #   environment:
+  #     - MSSQL_SA_PASSWORD=${MSSQL_SA_PASSWORD:-AdminPassword!}
+  #     - DATABASE_NAME=TR20260708
+  #   volumes:
+  #     - ./docker/sqlserver/init-db.sh:/init/init-db.sh:ro
+  #     - ./docker/sqlserver/script-init.sql:/init/script-init.sql:ro
+  #     - ./sqlserver-data/backup:/var/opt/mssql/backup:ro
+  #   depends_on:
+  #     sqlserver:
+  #       condition: service_healthy
+  #   command: ["/bin/bash", "/init/init-db.sh"]
+  #   networks:
+  #     - rubys
+
+  redis:
+      image: redis:8-alpine
+      container_name: rubys-redis
+      command: ["redis-server", "--appendonly", "yes",
+      #  "--requirepass", "${REDIS_PASSWORD:-redispassword}"
+       ]
+      ports:
+        - "6379:6379"
+      volumes:
+        - ./persistence_data/redis:/data
+      healthcheck:
+        test:
+          - CMD-SHELL
+          - redis-cli -a "$${REDIS_PASSWORD:-redispassword}" ping | grep PONG
+        interval: 10s
+        timeout: 3s
+        retries: 30
+      networks:
+        - rubys
+
+volumes:
+  sqlserver-data:
+
+networks:
+  rubys:
+    driver: bridge

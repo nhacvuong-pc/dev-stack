@@ -1,0 +1,28 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0-noble AS build
+
+WORKDIR /src
+COPY ruby-vibe-com-api/ ./
+
+RUN dotnet publish RubyVibeSystem.API/RubyVibeSystem.API.csproj \
+    --configuration Release \
+    --runtime linux-x64 \
+    --self-contained false \
+    --output /app/publish
+
+FROM mcr.microsoft.com/playwright/dotnet:v1.61.0-noble AS runtime
+
+WORKDIR /app
+COPY --from=build /app/publish/ ./
+
+RUN useradd --create-home --shell /usr/sbin/nologin appuser \
+    && mkdir -p /app/wwwroot/uploads /app/wwwroot/discount \
+    && chown -R appuser:appuser /app
+
+ENV ASPNETCORE_URLS=http://+:8080 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+EXPOSE 8080
+
+USER appuser
+
+ENTRYPOINT ["dotnet", "RubyVibeSystem.API.dll"]
